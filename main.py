@@ -1,50 +1,150 @@
 from PIL import Image, ImageDraw, ImageFont
+import subprocess
 import os
+import textwrap
 
-WIDTH, HEIGHT = 1080, 1920
+W, H = 1080, 1920
+FPS = 30
+DURATION = 48
 OUTPUT = "shorts.mp4"
 
-# Background sederhana untuk tes pertama
-img = Image.new("RGB", (WIDTH, HEIGHT), (10, 10, 15))
-draw = ImageDraw.Draw(img)
+SCENES = [
+    ("AI SEKARANG\nBISA MELIHAT DUNIA", "Bukan cuma mengenali wajah."),
+    ("KAMERA AI", "Teknologi ini bisa mengenali objek secara real-time."),
+    ("ROBOT", "Bahkan robot bisa menggunakan penglihatan seperti ini."),
+    ("ANALISIS", "AI menganalisis ribuan informasi hanya dalam hitungan detik."),
+    ("MASA DEPAN", "Teknologi ini mulai digunakan di mobil, pabrik, dan rumah."),
+    ("DAN INI BARU\nPERMULAANNYA", "Kemampuan AI berkembang jauh lebih cepat dari yang kita kira."),
+]
 
-try:
-    font_big = ImageFont.truetype(
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90
+def font(size, bold=True):
+    paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            return ImageFont.truetype(p, size)
+    return ImageFont.load_default()
+
+FONT_BIG = font(92)
+FONT_SUB = font(52, False)
+
+os.makedirs("frames", exist_ok=True)
+
+def make_frame(index, title, subtitle):
+    img = Image.new("RGB", (W, H), (5, 8, 15))
+    draw = ImageDraw.Draw(img)
+
+    # grid futuristik
+    for x in range(0, W, 90):
+        draw.line((x, 0, x, H), fill=(20, 28, 42), width=1)
+
+    for y in range(0, H, 90):
+        draw.line((0, y, W, y), fill=(20, 28, 42), width=1)
+
+    # lingkaran / interface
+    cx, cy = W // 2, 650
+    radius = 260 + index * 15
+
+    draw.ellipse(
+        (cx-radius, cy-radius, cx+radius, cy+radius),
+        outline=(70, 110, 150),
+        width=5
     )
-    font_small = ImageFont.truetype(
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 55
+
+    draw.ellipse(
+        (cx-130, cy-130, cx+130, cy+130),
+        outline=(120, 160, 210),
+        width=4
     )
-except:
-    font_big = ImageFont.load_default()
-    font_small = ImageFont.load_default()
 
-title = "TEKNOLOGI\nMASA DEPAN"
-subtitle = "AI sedang mengubah dunia."
+    # titik AI
+    for i in range(12):
+        x = cx + int(230 * __import__("math").cos(i * 0.52))
+        y = cy + int(230 * __import__("math").sin(i * 0.52))
+        draw.ellipse((x-8, y-8, x+8, y+8), fill=(180, 210, 240))
 
-draw.multiline_text(
-    (WIDTH // 2, 650),
-    title,
-    font=font_big,
-    fill="white",
-    anchor="mm",
-    align="center",
-)
+    # nomor scene
+    draw.text(
+        (70, 100),
+        f"TECHNOLOGY // 0{index + 1}",
+        font=font(32, False),
+        fill=(150, 170, 190)
+    )
 
-draw.text(
-    (WIDTH // 2, 1050),
-    subtitle,
-    font=font_small,
-    fill="white",
-    anchor="mm",
-)
+    # judul
+    draw.multiline_text(
+        (W // 2, 1050),
+        title,
+        font=FONT_BIG,
+        fill="white",
+        anchor="mm",
+        align="center",
+        spacing=15
+    )
 
-img.save("frame.png")
+    # subtitle
+    lines = textwrap.wrap(subtitle, width=34)
 
-# Buat video 5 detik menggunakan ffmpeg
-os.system(
-    "ffmpeg -y -loop 1 -i frame.png -t 5 "
-    "-vf 'scale=1080:1920' -pix_fmt yuv420p shorts.mp4"
-)
+    draw.multiline_text(
+        (W // 2, 1370),
+        "\n".join(lines),
+        font=FONT_SUB,
+        fill=(215, 220, 230),
+        anchor="mm",
+        align="center",
+        spacing=12
+    )
 
-print("VIDEO BERHASIL DIBUAT:", OUTPUT)
+    return img
+
+# Buat frame tiap scene
+for i, (title, subtitle) in enumerate(SCENES):
+    frame = make_frame(i, title, subtitle)
+    frame.save(f"frames/scene_{i}.png")
+
+# Buat video dengan perpindahan scene
+scene_duration = DURATION / len(SCENES)
+
+inputs = []
+filters = []
+
+for i in range(len(SCENES)):
+    inputs += ["-loop", "1", "-t", str(scene_duration), "-i", f"frames/scene_{i}.png"]
+
+filter_parts = []
+
+for i in range(len(SCENES)):
+    filter_parts.append(
+        f"[{i}:v]scale={W}:{H},"
+        f"zoompan=z='min(zoom+0.0008,1.12)':"
+        f"x='iw/2-(iw/zoom/2)':"
+        f"y='ih/2-(ih/zoom/2)':"
+        f"d={int(scene_duration*FPS)}:"
+        f"s={W}x{H}:fps={FPS}[v{i}]"
+    )
+
+concat_inputs = "".join(f"[v{i}]" for i in range(len(SCENES)))
+
+filter_complex = ";".join(filter_parts) + ";" + \
+    concat_inputs + f"concat=n={len(SCENES)}:v=1:a=0[outv]"
+
+cmd = [
+    "ffmpeg", "-y",
+    *inputs,
+    "-filter_complex", filter_complex,
+    "-map", "[outv]",
+    "-c:v", "libx264",
+    "-preset", "veryfast",
+    "-crf", "23",
+    "-pix_fmt", "yuv420p",
+    "-movflags", "+faststart",
+    OUTPUT
+]
+
+subprocess.run(cmd, check=True)
+
+print(f"BERHASIL: {OUTPUT}")
+print(f"DURASI: {DURATION} detik")
+print(f"RESOLUSI: {W}x{H}")
