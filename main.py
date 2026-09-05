@@ -1,25 +1,50 @@
-print("import os
-from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
+import os
 
-TOPIC = os.getenv("TOPIC", "Teknologi AI yang akan mengubah masa depan")
+WIDTH, HEIGHT = 1080, 1920
+OUTPUT = "shorts.mp4"
 
-script = f"""
-TOPIK: {TOPIC}
+# Background sederhana untuk tes pertama
+img = Image.new("RGB", (WIDTH, HEIGHT), (10, 10, 15))
+draw = ImageDraw.Draw(img)
 
-HOOK:
-Tahukah kamu, teknologi ini bisa mengubah cara manusia hidup?
+try:
+    font_big = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90
+    )
+    font_small = ImageFont.truetype(
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 55
+    )
+except:
+    font_big = ImageFont.load_default()
+    font_small = ImageFont.load_default()
 
-ISI:
-{TOPIC} adalah salah satu perkembangan teknologi yang paling menarik saat ini.
-Teknologi ini terus berkembang dan mulai digunakan di berbagai bidang.
-Yang membuatnya menarik, kemampuannya semakin cepat dan semakin canggih.
+title = "TEKNOLOGI\nMASA DEPAN"
+subtitle = "AI sedang mengubah dunia."
 
-PENUTUP:
-Dan yang paling mengejutkan, ini baru permulaannya.
-"""
+draw.multiline_text(
+    (WIDTH // 2, 650),
+    title,
+    font=font_big,
+    fill="white",
+    anchor="mm",
+    align="center",
+)
 
-print("=" * 50)
-print("AUTO YOUTUBE SHORTS")
-print("=" * 50)
-print(script)
-print("Generated:", datetime.now())")
+draw.text(
+    (WIDTH // 2, 1050),
+    subtitle,
+    font=font_small,
+    fill="white",
+    anchor="mm",
+)
+
+img.save("frame.png")
+
+# Buat video 5 detik menggunakan ffmpeg
+os.system(
+    "ffmpeg -y -loop 1 -i frame.png -t 5 "
+    "-vf 'scale=1080:1920' -pix_fmt yuv420p shorts.mp4"
+)
+
+print("VIDEO BERHASIL DIBUAT:", OUTPUT)
