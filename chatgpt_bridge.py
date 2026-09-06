@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 import os, httpx
 
-app = FastAPI(title="ChatGPT Agnes Bridge", version="1.0.0")
+app = FastAPI(title="ChatGPT Agnes Bridge", version="1.0.1")
 AGNES_URL = os.getenv("AGNES_URL", "https://agnes-dockerhub-production.up.railway.app").rstrip("/")
 BRIDGE_TOKEN = os.getenv("BRIDGE_TOKEN", "")
 
