@@ -12,8 +12,11 @@ class GenerateRequest(BaseModel):
     resolution: str = "768x1152"
     mode: str = "t2v"
 
-def auth(x_bridge_token: str | None):
-    if not BRIDGE_TOKEN or x_bridge_token != BRIDGE_TOKEN:
+def auth(authorization: str | None = None, x_bridge_token: str | None = None):
+    token = x_bridge_token
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not BRIDGE_TOKEN or token != BRIDGE_TOKEN:
         raise HTTPException(401, "Unauthorized")
 
 @app.get("/api/chatgpt/health")
@@ -21,8 +24,8 @@ async def health():
     return {"ok": True, "service": "chatgpt-agnes-bridge"}
 
 @app.post("/api/chatgpt/generate")
-async def generate(req: GenerateRequest, x_bridge_token: str | None = Header(default=None)):
-    auth(x_bridge_token)
+async def generate(req: GenerateRequest, authorization: str | None = Header(default=None), x_bridge_token: str | None = Header(default=None)):
+    auth(authorization, x_bridge_token)
     if not req.prompt.strip():
         raise HTTPException(400, "prompt is required")
     data = {"prompt": req.prompt, "mode": req.mode, "duration": str(req.duration), "resolution": req.resolution}
@@ -33,8 +36,8 @@ async def generate(req: GenerateRequest, x_bridge_token: str | None = Header(def
     return r.json()
 
 @app.get("/api/chatgpt/status/{task_id}")
-async def status(task_id: str, x_bridge_token: str | None = Header(default=None)):
-    auth(x_bridge_token)
+async def status(task_id: str, authorization: str | None = Header(default=None), x_bridge_token: str | None = Header(default=None)):
+    auth(authorization, x_bridge_token)
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(f"{AGNES_URL}/api/tasks/{task_id}")
     if r.status_code >= 400:
@@ -42,8 +45,8 @@ async def status(task_id: str, x_bridge_token: str | None = Header(default=None)
     return r.json()
 
 @app.get("/api/chatgpt/video/{task_id}")
-async def video(task_id: str, x_bridge_token: str | None = Header(default=None)):
-    auth(x_bridge_token)
+async def video(task_id: str, authorization: str | None = Header(default=None), x_bridge_token: str | None = Header(default=None)):
+    auth(authorization, x_bridge_token)
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(f"{AGNES_URL}/api/video/{task_id}")
     if r.status_code >= 400:
