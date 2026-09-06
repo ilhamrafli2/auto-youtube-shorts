@@ -19,6 +19,10 @@ def auth(authorization: str | None = None, x_bridge_token: str | None = None):
     if not BRIDGE_TOKEN or token != BRIDGE_TOKEN:
         raise HTTPException(401, "Unauthorized")
 
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True, "service": "chatgpt-agnes-bridge"}
+
 @app.get("/api/chatgpt/health")
 async def health():
     return {"ok": True, "service": "chatgpt-agnes-bridge"}
