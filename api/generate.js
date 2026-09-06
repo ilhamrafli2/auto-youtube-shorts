@@ -3,7 +3,7 @@ export default async function handler(req,res){
  if(req.method!=='GET'&&req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
  const {prompt,duration}=input;
  if(!prompt?.trim()) return res.status(400).json({error:'Prompt wajib diisi'});
- const baseUrl=(process.env.AGNES_API_URL||'https://agnes-production.up.railway.app').replace(/\/$/,'');
+ const baseUrl='https://agnes-dockerhub-production.up.railway.app';
  const apiKey=process.env.AGNES_API_KEY;
  if(!apiKey) return res.status(503).json({error:'AGNES_API_KEY belum diset di Vercel'});
  try{
