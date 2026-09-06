@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 import os, httpx
 
-app = FastAPI(title="ChatGPT Agnes Bridge", version="1.1.0")
+app = FastAPI(title="ChatGPT Agnes Bridge", version="1.0.0")
 AGNES_URL = os.getenv("AGNES_URL", "https://agnes-dockerhub-production.up.railway.app").rstrip("/")
 BRIDGE_TOKEN = os.getenv("BRIDGE_TOKEN", "")
 
@@ -12,21 +12,17 @@ class GenerateRequest(BaseModel):
     resolution: str = "768x1152"
     mode: str = "t2v"
 
-def auth(x_bridge_token: str | None, authorization: str | None):
-    bearer = None
-    if authorization and authorization.lower().startswith("bearer "):
-        bearer = authorization[7:].strip()
-    if not BRIDGE_TOKEN or (x_bridge_token != BRIDGE_TOKEN and bearer != BRIDGE_TOKEN):
+def auth(x_bridge_token: str | None):
+    if not BRIDGE_TOKEN or x_bridge_token != BRIDGE_TOKEN:
         raise HTTPException(401, "Unauthorized")
 
 @app.get("/api/chatgpt/health")
-async def health(x_bridge_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
-    auth(x_bridge_token, authorization)
+async def health():
     return {"ok": True, "service": "chatgpt-agnes-bridge"}
 
 @app.post("/api/chatgpt/generate")
-async def generate(req: GenerateRequest, x_bridge_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
-    auth(x_bridge_token, authorization)
+async def generate(req: GenerateRequest, x_bridge_token: str | None = Header(default=None)):
+    auth(x_bridge_token)
     if not req.prompt.strip():
         raise HTTPException(400, "prompt is required")
     data = {"prompt": req.prompt, "mode": req.mode, "duration": str(req.duration), "resolution": req.resolution}
@@ -37,8 +33,8 @@ async def generate(req: GenerateRequest, x_bridge_token: str | None = Header(def
     return r.json()
 
 @app.get("/api/chatgpt/status/{task_id}")
-async def status(task_id: str, x_bridge_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
-    auth(x_bridge_token, authorization)
+async def status(task_id: str, x_bridge_token: str | None = Header(default=None)):
+    auth(x_bridge_token)
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(f"{AGNES_URL}/api/tasks/{task_id}")
     if r.status_code >= 400:
@@ -46,8 +42,8 @@ async def status(task_id: str, x_bridge_token: str | None = Header(default=None)
     return r.json()
 
 @app.get("/api/chatgpt/video/{task_id}")
-async def video(task_id: str, x_bridge_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
-    auth(x_bridge_token, authorization)
+async def video(task_id: str, x_bridge_token: str | None = Header(default=None)):
+    auth(x_bridge_token)
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(f"{AGNES_URL}/api/video/{task_id}")
     if r.status_code >= 400:
