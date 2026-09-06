@@ -104,47 +104,70 @@ for i, (title, subtitle) in enumerate(SCENES):
     frame = make_frame(i, title, subtitle)
     frame.save(f"frames/scene_{i}.png")
 
-# Buat video dengan perpindahan scene
-scene_duration = DURATION / len(SCENES)
+# Buat video 48 detik dengan zoom sederhana
+scene_duration = 8
+frames_per_scene = scene_duration * FPS
 
 inputs = []
 filters = []
 
 for i in range(len(SCENES)):
-    inputs += ["-loop", "1", "-t", str(scene_duration), "-i", f"frames/scene_{i}.png"]
+    # Hanya satu frame input untuk setiap scene.
+    # Ini mencegah zoompan menghasilkan ribuan frame ekstra.
+    inputs += [
+        "-loop", "1",
+        "-framerate", "1",
+        "-t", "1",
+        "-i", f"frames/scene_{i}.png"
+    ]
 
-filter_parts = []
-
-for i in range(len(SCENES)):
-    filter_parts.append(
-        f"[{i}:v]scale={W}:{H},"
-        f"zoompan=z='min(zoom+0.0008,1.12)':"
+    filters.append(
+        f"[{i}:v]"
+        f"zoompan="
+        f"z='min(zoom+0.0015,1.12)':"
         f"x='iw/2-(iw/zoom/2)':"
         f"y='ih/2-(ih/zoom/2)':"
-        f"d={int(scene_duration*FPS)}:"
-        f"s={W}x{H}:fps={FPS}[v{i}]"
+        f"d={frames_per_scene}:"
+        f"s={W}x{H}:"
+        f"fps={FPS}"
+        f"[v{i}]"
     )
 
 concat_inputs = "".join(f"[v{i}]" for i in range(len(SCENES)))
 
-filter_complex = ";".join(filter_parts) + ";" + \
-    concat_inputs + f"concat=n={len(SCENES)}:v=1:a=0[outv]"
+filter_complex = (
+    ";".join(filters)
+    + ";"
+    + concat_inputs
+    + f"concat=n={len(SCENES)}:v=1:a=0[outv]"
+)
 
 cmd = [
-    "ffmpeg", "-y",
+    "ffmpeg",
+    "-y",
     *inputs,
-    "-filter_complex", filter_complex,
-    "-map", "[outv]",
-    "-c:v", "libx264",
-    "-preset", "veryfast",
-    "-crf", "23",
-    "-pix_fmt", "yuv420p",
-    "-movflags", "+faststart",
+    "-filter_complex",
+    filter_complex,
+    "-map",
+    "[outv]",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "26",
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
     OUTPUT
 ]
 
 subprocess.run(cmd, check=True)
 
-print(f"BERHASIL: {OUTPUT}")
+print("================================")
+print("VIDEO BERHASIL DIBUAT")
 print(f"DURASI: {DURATION} detik")
 print(f"RESOLUSI: {W}x{H}")
+print(f"FILE: {OUTPUT}")
+print("================================")
