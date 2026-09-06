@@ -1,6 +1,7 @@
 export default async function handler(req,res){
- if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
- const {prompt,duration}=req.body||{};
+ const input=req.method==='GET'?(req.query||{}):(req.body||{});
+ if(req.method!=='GET'&&req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
+ const {prompt,duration}=input;
  if(!prompt?.trim()) return res.status(400).json({error:'Prompt wajib diisi'});
  const baseUrl=(process.env.AGNES_API_URL||'https://agnes-production.up.railway.app').replace(/\/$/,'');
  const apiKey=process.env.AGNES_API_KEY;
