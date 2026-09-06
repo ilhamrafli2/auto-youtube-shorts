@@ -1,9 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Agnes Video Generator",
-    "version": "2.0.0",
-    "description": "Generate videos through the Cloudflare Agnes bridge."
+    "title": "Agnes Video",
+    "version": "1.2.0"
   },
   "servers": [
     {
@@ -19,7 +18,7 @@
     "/generate": {
       "post": {
         "operationId": "generateVideo",
-        "summary": "Start video generation",
+        "summary": "Generate Agnes video",
         "requestBody": {
           "required": true,
           "content": {
@@ -76,7 +75,9 @@
                   "type": "object",
                   "properties": {
                     "task_id": { "type": "string" },
-                    "status": { "type": "string" }
+                    "status": { "type": "string" },
+                    "progress": { "type": "number" },
+                    "message": { "type": "string" }
                   }
                 }
               }
@@ -106,7 +107,8 @@
                   "type": "object",
                   "properties": {
                     "video_url": { "type": "string" }
-                  }
+                  },
+                  "required": ["video_url"]
                 }
               }
             }
