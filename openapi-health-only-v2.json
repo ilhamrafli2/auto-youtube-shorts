@@ -1,0 +1,25 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agnes Health Only",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://chatgpt-agnes.goncalvesilham.workers.dev"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Check bridge health",
+        "responses": {
+          "200": {
+            "description": "Bridge is online"
+          }
+        }
+      }
+    }
+  }
+}
