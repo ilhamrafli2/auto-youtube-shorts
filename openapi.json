@@ -1,67 +1,117 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "ChatGPT Agnes Bridge",
-    "version": "1.1.0",
-    "description": "Generate vertical videos through the Agnes Railway backend."
+    "title": "Agnes Video Generator",
+    "version": "2.0.0",
+    "description": "Generate videos through the Cloudflare Agnes bridge."
   },
   "servers": [
-    { "url": "https://chatgpt-agnes-bridge-production.up.railway.app" }
+    {
+      "url": "https://chatgpt-agnes.goncalvesilham.workers.dev"
+    }
   ],
-  "security": [{ "bearerAuth": [] }],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
   "paths": {
-    "/api/chatgpt/health": {
-      "get": {
-        "operationId": "health",
-        "summary": "Check bridge health",
-        "responses": { "200": { "description": "Healthy" } }
-      }
-    },
-    "/api/chatgpt/generate": {
+    "/generate": {
       "post": {
         "operationId": "generateVideo",
-        "summary": "Start Agnes video generation",
+        "summary": "Start video generation",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateRequest"
+                "type": "object",
+                "properties": {
+                  "prompt": { "type": "string" },
+                  "duration": { "type": "integer", "default": 5 },
+                  "resolution": { "type": "string", "default": "768x1152" },
+                  "mode": { "type": "string", "default": "t2v" }
+                },
+                "required": ["prompt"]
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Task created" },
-          "400": { "description": "Invalid request" },
-          "401": { "description": "Unauthorized" }
+          "200": {
+            "description": "Task created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task_id": { "type": "string" },
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/api/chatgpt/status/{task_id}": {
+    "/status/{task_id}": {
       "get": {
         "operationId": "getVideoStatus",
-        "summary": "Get video generation status",
-        "parameters": [{
-          "name": "task_id",
-          "in": "path",
-          "required": true,
-          "schema": { "type": "string" }
-        }],
-        "responses": { "200": { "description": "Task status" }, "401": { "description": "Unauthorized" } }
+        "summary": "Check video generation status",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task_id": { "type": "string" },
+                    "status": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "/api/chatgpt/video/{task_id}": {
+    "/video/{task_id}": {
       "get": {
-        "operationId": "downloadVideo",
-        "summary": "Download generated MP4",
-        "parameters": [{
-          "name": "task_id",
-          "in": "path",
-          "required": true,
-          "schema": { "type": "string" }
-        }],
-        "responses": { "200": { "description": "MP4 video", "content": { "video/mp4": {} } }, "401": { "description": "Unauthorized" } }
+        "operationId": "getVideoUrl",
+        "summary": "Get generated video URL",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Video URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "video_url": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -70,18 +120,6 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer"
-      }
-    },
-    "schemas": {
-      "GenerateRequest": {
-        "type": "object",
-        "required": ["prompt"],
-        "properties": {
-          "prompt": { "type": "string", "description": "Detailed visual prompt for the video" },
-          "duration": { "type": "integer", "default": 5, "minimum": 1, "maximum": 60 },
-          "resolution": { "type": "string", "default": "768x1152" },
-          "mode": { "type": "string", "default": "t2v" }
-        }
       }
     }
   }
