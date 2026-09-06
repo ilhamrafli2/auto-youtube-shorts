@@ -1,0 +1,115 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agnes Video Generator",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://chatgpt-agnes.goncalvesilham.workers.dev"
+    }
+  ],
+  "paths": {
+    "/generate": {
+      "post": {
+        "operationId": "generateVideo",
+        "summary": "Generate an Agnes video",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {"type": "string"},
+                  "duration": {"type": "integer"},
+                  "resolution": {"type": "string"},
+                  "mode": {"type": "string"}
+                },
+                "required": ["prompt"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task_id": {"type": "string"},
+                    "status": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/status/{task_id}": {
+      "get": {
+        "operationId": "getVideoStatus",
+        "summary": "Check Agnes video status",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "task_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "progress": {"type": "number"},
+                    "message": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/video/{task_id}": {
+      "get": {
+        "operationId": "getVideoUrl",
+        "summary": "Get the generated video URL",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Video URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "video_url": {"type": "string"}
+                  },
+                  "required": ["video_url"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
