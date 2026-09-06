@@ -1,5 +1,7 @@
 FROM python:3.11-slim
 WORKDIR /app
+# Force Railway to rebuild the bridge image with the latest bridge code.
+ARG BRIDGE_BUILD=2026-09-07-healthfix
 COPY chatgpt_bridge.py /app/chatgpt_bridge.py
 RUN pip install --no-cache-dir fastapi uvicorn httpx pydantic
 ENV PORT=8000
