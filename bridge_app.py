@@ -2,15 +2,15 @@ from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 import os, httpx
 
-# Railway sync trigger: long-video /generate bridge
-app = FastAPI(title="ChatGPT Agnes Bridge", version="1.3.0")
+# Agnes long-video bridge: 50s requests become Creative Video scenes.
+app = FastAPI(title="ChatGPT Agnes Bridge", version="1.4.0")
 AGNES_URL = os.getenv("AGNES_URL", "https://agnes-dockerhub-production.up.railway.app").rstrip("/")
 BRIDGE_TOKEN = os.getenv("BRIDGE_TOKEN", "")
 
 class GenerateRequest(BaseModel):
     prompt: str
     duration: int = 5
-    resolution: str = "768x1152"
+    resolution: str = "1080x1920"
     mode: str = "t2v"
 
 def auth(authorization: str | None = None, x_bridge_token: str | None = None):
@@ -25,15 +25,23 @@ def _resolution(resolution: str):
         w, h = (int(x) for x in resolution.lower().split("x", 1))
         return w, h
     except Exception:
-        return 768, 1152
+        return 1080, 1920
+
+def _scene_durations(total: int):
+    # Keep every Creative scene <= 10s for reliable generation.
+    if total <= 20:
+        return [total]
+    count = max(2, (total + 9) // 10)
+    base, rem = divmod(total, count)
+    return [base + (1 if i < rem else 0) for i in range(count)]
 
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.3.0"}
+    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.4.0"}
 
 @app.get("/api/chatgpt/health")
 async def health():
-    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.3.0"}
+    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.4.0"}
 
 @app.post("/api/chatgpt/generate")
 @app.post("/generate")
@@ -43,22 +51,20 @@ async def generate(req: GenerateRequest, authorization: str | None = Header(defa
         raise HTTPException(400, "prompt is required")
     mode = req.mode.lower().strip()
     width, height = _resolution(req.resolution)
+
     if req.duration > 20:
-        scene_count = max(2, (req.duration + 9) // 10)
-        base = req.duration // scene_count
-        remainder = req.duration % scene_count
-        scene_durations = [base + (1 if i < remainder else 0) for i in range(scene_count)]
+        durations = _scene_durations(req.duration)
         data = {
             "idea": req.prompt,
             "creative_name": "ChatGPT Agnes Long Video",
-            "style": "premium cinematic 3D animation",
+            "style": "premium cinematic 3D animation, consistent character design, smooth camera movement",
             "chaining_mode": "keyframes",
             "video_width": str(width),
             "video_height": str(height),
             "duration_source": "manual",
-            "scene_count": str(scene_count),
+            "scene_count": str(len(durations)),
             "uniform_duration": "false",
-            "scene_durations_json": "[" + ",".join(str(x) for x in scene_durations) + "]",
+            "scene_durations_json": "[" + ",".join(map(str, durations)) + "]",
             "audio_enabled": "true",
             "audio_voice": "id-ID-ArdiNeural",
             "audio_rate": "+0%",
@@ -73,6 +79,7 @@ async def generate(req: GenerateRequest, authorization: str | None = Header(defa
             raise HTTPException(422, f"Unsupported mode: {req.mode}")
         data = {"prompt": req.prompt, "mode": mode, "duration": str(req.duration), "resolution": req.resolution}
         endpoint = f"{AGNES_URL}/api/tasks/simple"
+
     async with httpx.AsyncClient(timeout=90) as client:
         r = await client.post(endpoint, data=data)
     if r.status_code >= 400:
