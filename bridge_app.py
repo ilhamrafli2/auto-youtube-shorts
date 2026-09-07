@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 import os, httpx
 
-app = FastAPI(title="ChatGPT Agnes Bridge", version="1.2.0")
+app = FastAPI(title="ChatGPT Agnes Bridge", version="1.3.0")
 AGNES_URL = os.getenv("AGNES_URL", "https://agnes-dockerhub-production.up.railway.app").rstrip("/")
 BRIDGE_TOKEN = os.getenv("BRIDGE_TOKEN", "")
 
@@ -28,13 +28,14 @@ def _resolution(resolution: str):
 
 @app.get("/healthz")
 async def healthz():
-    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.2.0"}
+    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.3.0"}
 
 @app.get("/api/chatgpt/health")
 async def health():
-    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.2.0"}
+    return {"ok": True, "service": "chatgpt-agnes-bridge", "version": "1.3.0"}
 
 @app.post("/api/chatgpt/generate")
+@app.post("/generate")
 async def generate(req: GenerateRequest, authorization: str | None = Header(default=None), x_bridge_token: str | None = Header(default=None)):
     auth(authorization, x_bridge_token)
     if not req.prompt.strip():
