@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 WORKDIR /app
-ARG BRIDGE_BUILD=2026-09-07-modulefix-2
+ARG BRIDGE_BUILD=2026-09-07-force-railway-sync-3
 COPY bridge_app.py /app/bridge_app.py
 RUN pip install --no-cache-dir fastapi uvicorn httpx pydantic
 ENV PORT=8000
