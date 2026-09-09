@@ -9,3 +9,16 @@ export async function loadVoiceStyle(paths){const first=await(await fetch(paths[
 export async function loadTextToSpeech(onnxDir,options={},progress=null){const cfg=await(await fetch(`${onnxDir}/tts.json`)).json(),paths=['duration_predictor.onnx','text_encoder.onnx','vector_estimator.onnx','vocoder.onnx'],sessions=[];for(let i=0;i<paths.length;i++){progress?.(paths[i],i+1,paths.length);sessions.push(await ort.InferenceSession.create(`${onnxDir}/${paths[i]}`,options));}const indexer=await(await fetch(`${onnxDir}/unicode_indexer.json`)).json();return{textToSpeech:new TextToSpeech(cfg,new UnicodeProcessor(indexer),...sessions),cfgs:cfg};}
 function chunkText(text,maxLen=300){const paras=text.trim().split(/\n\s*\n+/).filter(Boolean),chunks=[];for(let p of paras){const sentences=p.trim().split(/(?<=[.!?])\s+/);let cur='';for(const s of sentences){if(cur.length+s.length+1<=maxLen)cur+=(cur?' ':'')+s;else{if(cur)chunks.push(cur.trim());cur=s;}}if(cur)chunks.push(cur.trim());}return chunks.length?chunks:[text.trim()];}
 export function writeWavFile(audioData,sampleRate){const buffer=new ArrayBuffer(44+audioData.length*2),v=new DataView(buffer),write=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};write(0,'RIFF');v.setUint32(4,36+audioData.length*2,true);write(8,'WAVE');write(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sampleRate,true);v.setUint32(28,sampleRate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);write(36,'data');v.setUint32(40,audioData.length*2,true);const pcm=new Int16Array(audioData.length);for(let i=0;i<audioData.length;i++)pcm[i]=Math.floor(Math.max(-1,Math.min(1,audioData[i]))*32767);new Uint8Array(buffer,44).set(new Uint8Array(pcm.buffer));return buffer;}
+
+// iPhone/Safari compatibility: WebKit 18.4+ has reliable WebM recording, while some MP4 variants are fragile with generated Canvas/WebAudio streams.
+// Prefer WebM on iOS and ignore the timeslice so Safari finalizes one complete container at stop().
+if(typeof window!=='undefined'&&window.MediaRecorder){
+  const NativeMR=window.MediaRecorder;
+  const nativeSupport=typeof NativeMR.isTypeSupported==='function'?NativeMR.isTypeSupported.bind(NativeMR):()=>false;
+  NativeMR.isTypeSupported=function(type){
+    if(/^video\/mp4/i.test(type)&&nativeSupport('video/webm')) return false;
+    return nativeSupport(type);
+  };
+  const nativeStart=NativeMR.prototype.start;
+  NativeMR.prototype.start=function(){ return nativeStart.call(this); };
+}
