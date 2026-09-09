@@ -38,10 +38,18 @@ Tugas:
       });
       const j=await r.json();
       if(!r.ok) throw Error(j.error?.message||'OpenAI gagal membuat script.');
-      const text=j.output_text;
+
+      // Responses API REST returns the generated text inside output[].content[].text.
+      // output_text is an SDK convenience property and is not guaranteed in raw REST JSON.
+      const text=(j.output||[])
+        .flatMap(item=>item.content||[])
+        .filter(part=>part.type==='output_text' && typeof part.text==='string')
+        .map(part=>part.text)
+        .join('');
+
       if(!text) throw Error('OpenAI tidak mengembalikan hasil script.');
       const plan=JSON.parse(text);
-      if(!plan.scenes||plan.scenes.length!==8) throw Error('AI tidak mengembalikan tepat 8 scene.');
+      if(!plan.script || !Array.isArray(plan.scenes) || plan.scenes.length!==8) throw Error('AI tidak mengembalikan script dan tepat 8 scene.');
       return res.status(200).json(plan);
     }
 
