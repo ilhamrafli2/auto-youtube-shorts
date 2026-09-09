@@ -1,0 +1,37 @@
+name: Patch Pixazo polling
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'Patch Pixazo polling') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch frontend polling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('visual-studio.html')
+          s = p.read_text()
+          replacement = r'''async function pixazoVideo(prompt){const k=key.value.trim();if(!k)throw Error('Masukkan Pixazo API key dulu.');const r=await fetch('/api/pixazo-video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:k,prompt,aspect:'9:16',num_frames:121,frame_rate:24,steps:8})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error('Pixazo HTTP '+r.status+' · '+JSON.stringify(d).slice(0,500));let id=d.request_id||d.id;if(d.output?.media_url?.[0])return d.output.media_url[0];if(d.media_url?.[0])return d.media_url[0];if(!id)throw Error('Pixazo tidak mengembalikan request_id · '+JSON.stringify(d).slice(0,500));const started=Date.now(),maxPolls=180;for(let i=0;i<maxPolls;i++){await sleep(5000);const q=await fetch('/api/pixazo-status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:k,request_id:id})});const x=await q.json().catch(()=>({}));if(!q.ok)throw Error('Pixazo status HTTP '+q.status+' · '+JSON.stringify(x).slice(0,500));const s=String(x.status||'').toUpperCase();if(s==='COMPLETED'){const u=x.video_url||x.output?.media_url?.[0]||x.output?.media_url||x.media_url?.[0]||x.url;if(u)return u;throw Error('Pixazo selesai tetapi URL video kosong.');}if(s==='ERROR'||s==='FAILED')throw Error('Pixazo job gagal · '+(x.error||JSON.stringify(x).slice(0,500)));const elapsed=Math.floor((Date.now()-started)/1000);stat('⏳ Pixazo render '+Math.floor((i+1)/12)+'m '+((i+1)%12*5)+'s',''+Math.min(99,42+(i/maxPolls)*55),'LTX Video · '+(s||'PROCESSING')+' · request '+id+' · '+elapsed+'s');}throw Error('Pixazo belum selesai setelah 15 menit. Request: '+id+' — status job tetap diproses atau antrean sedang padat.');}'''
+          pattern = r'async function pixazoVideo\(prompt\)\{.*?\}async function genClips'
+          ns, n = re.subn(pattern, replacement + 'async function genClips', s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit('pixazoVideo function pattern not found')
+          p.write_text(ns)
+          print('patched visual-studio.html')
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add visual-studio.html
+          git diff --cached --quiet || git commit -m 'Patch Pixazo polling'
+          git push
