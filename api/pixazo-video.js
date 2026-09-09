@@ -1,11 +1,12 @@
 export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
   try{
-    const {apiKey,prompt,aspect='9:16',num_frames=73,frame_rate=24,steps=8}=req.body||{};
+    const {apiKey,prompt,aspect='9:16',frame_rate=24,steps=8}=req.body||{};
     const key=String(apiKey||process.env.PIXAZO_API_KEY||'').trim();
     if(!key) return res.status(400).json({error:'Pixazo API key belum diisi.'});
     if(!prompt) return res.status(400).json({error:'Prompt kosong'});
-    const safeFrames=Math.max(9,Math.min(121,Number(num_frames)||73));
+    // 73 frames at 24fps = ~3 seconds: faster free-tier generation and matches the browser stitcher.
+    const safeFrames=73;
     const safeFps=Math.max(1,Math.min(60,Number(frame_rate)||24));
     const safeSteps=Math.max(8,Math.min(30,Number(steps)||8));
     const r=await fetch('https://gateway.pixazo.ai/ltx-video/v1/text-to-video',{
