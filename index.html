@@ -34,8 +34,68 @@ function mWriteWav(wav,sr){const n=wav.length,ch=1,bps=2,buf=new ArrayBuffer(44+
 $('#voice').onclick=async()=>{try{await generateVoice();setStatus('✅ Voice siap — '+voiceDuration.toFixed(1)+' detik.',100)}catch(e){setStatus('❌ TTS gagal: '+e.message,0);setDiag(e.stack||e.message)}};
 function wrap(c,text,x,y,w,h,max){const a=String(text||'').replace(/\s+/g,' ').trim().split(' '),ls=[];let line='';for(const word of a){const z=line?line+' '+word:word;if(c.measureText(z).width>w&&line){ls.push(line);line=word;if(ls.length>=max)break}else line=z}if(line&&ls.length<max)ls.push(line);const top=y-(ls.length-1)*h/2;ls.forEach((l,i)=>c.fillText(l,x,top+i*h))}
 function drawScene(ctx,s,idx,total){ctx.fillStyle='#07080b';ctx.fillRect(0,0,360,640);const g=ctx.createLinearGradient(0,0,360,640);g.addColorStop(0,'#171b2a');g.addColorStop(1,'#05060a');ctx.fillStyle=g;ctx.fillRect(0,0,360,640);ctx.fillStyle='#fff';ctx.font='800 22px system-ui';ctx.textAlign='center';wrap(ctx,s.v||('Scene '+(idx+1)),180,290,300,31,7);ctx.fillStyle='#aeb5c1';ctx.font='500 15px system-ui';ctx.fillText((idx+1)+' / '+total,180,590)}
-async function initFFmpeg(){if(ffmpeg)return ffmpeg;if(ffmpegLoading)return ffmpegLoading;ffmpegLoading=(async()=>{setStatus('⚙️ Memuat FFmpeg encoder...',78);const fmod=await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/index.js');const umod=await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js');const f=new fmod.FFmpeg();f.on('log',({message})=>{console.log('[FFmpeg]',message);if(/error|failed|invalid|unknown/i.test(message))setDiag('FFmpeg: '+message)});f.on('progress',({progress})=>setStatus('🎞️ Encoding MP4 '+Math.round(progress*100)+'%...',92+progress*7));const base='https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';await f.load({coreURL:await umod.toBlobURL(base+'/ffmpeg-core.js','text/javascript'),wasmURL:await umod.toBlobURL(base+'/ffmpeg-core.wasm','application/wasm')});ffmpeg=f;return{f,fetchFile:umod.fetchFile}})().catch(e=>{ffmpegLoading=null;throw e});return ffmpegLoading}
-async function renderMP4(){if(!script.value.trim())throw Error('Buat script dulu.');if(!lastWav)await generateVoice();if(!voiceDuration)throw Error('Durasi voice tidak terbaca.');const ss=scenes(script.value),pack=await initFFmpeg(),f=pack.f,fetchFile=pack.fetchFile,ctx=live.getContext('2d',{alpha:false});live.style.display='block';preview.style.display='none';download.style.display='none';const weights=ss.map(s=>Math.max(1,s.n.length||1)),sum=weights.reduce((a,b)=>a+b,0),durations=weights.map(w=>voiceDuration*w/sum),files=[];for(let i=0;i<ss.length;i++){drawScene(ctx,ss[i],i,ss.length);const blob=await new Promise((res,rej)=>live.toBlob(b=>b?res(b):rej(Error('Canvas JPEG gagal')),'image/jpeg',.82));const name='scene'+String(i).padStart(2,'0')+'.jpg';await f.writeFile(name,await fetchFile(blob));files.push({name,d:durations[i]});setStatus('🖼️ Scene '+(i+1)+'/'+ss.length+' siap...',82+(i/ss.length)*8)}let concat='';for(const x of files)concat+='file '+x.name+'\nduration '+x.d.toFixed(3)+'\n';concat+='file '+files[files.length-1].name+'\n';await f.writeFile('concat.txt',new TextEncoder().encode(concat));await f.writeFile('audio.wav',await fetchFile(lastWav));setStatus('🎬 Encoding MP4...',92);const common=['-f','concat','-safe','0','-i','concat.txt','-i','audio.wav','-map','0:v:0','-map','1:a:0','-vf','format=yuv420p','-r','24','-c:a','aac','-b:a','96k','-shortest','-movflags','+faststart'];let ok=false,err=null;for(const codec of [['libx264','-preset','ultrafast','-crf','30'],['mpeg4','-q:v','8']]){try{await f.exec([...common,'-c:v',...codec,'output.mp4']);ok=true;break}catch(e){err=e;try{await f.deleteFile('output.mp4')}catch{}}}if(!ok)throw Error('Encoder MP4 gagal: '+(err?.message||err));const data=await f.readFile('output.mp4');const blob=new Blob([data.buffer||data],{type:'video/mp4'});if(!blob.size)throw Error('Video kosong');const url=URL.createObjectURL(blob);preview.src=url;preview.style.display='block';live.style.display='none';download.href=url;download.download='ai-shorts-'+Date.now()+'.mp4';download.textContent='⬇️ DOWNLOAD VIDEO MP4 + VOICE';download.style.display='block';setStatus('✅ VIDEO LENGKAP SELESAI — '+(blob.size/1048576).toFixed(1)+' MB',100);return blob}
+async function initFFmpeg(){
+ if(ffmpeg)return ffmpeg;
+ if(ffmpegLoading)return ffmpegLoading;
+ ffmpegLoading=(async()=>{
+  setStatus('⚙️ Memuat FFmpeg encoder...',78);
+  setDiag('FFmpeg single-thread 0.12.10\niPhone/WebGPU: '+(!!navigator.gpu)+'\ncrossOriginIsolated: '+crossOriginIsolated+'\nMengunduh encoder ~32 MB...');
+  const fmod=await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
+  const umod=await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js');
+  const f=new fmod.FFmpeg();
+  f.on('log',({message})=>{console.log('[FFmpeg]',message);if(/error|failed|invalid|unknown|abort/i.test(message))setDiag('FFmpeg: '+message)});
+  const base='https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
+  const loadPromise=f.load({
+   coreURL:await umod.toBlobURL(base+'/ffmpeg-core.js','text/javascript'),
+   wasmURL:await umod.toBlobURL(base+'/ffmpeg-core.wasm','application/wasm')
+  });
+  let timer;
+  const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('FFmpeg load timeout setelah 60 detik. Coba tekan Render MP4 lagi.')),60000)});
+  try{await Promise.race([loadPromise,timeout]);}finally{clearTimeout(timer)}
+  ffmpeg=f;
+  setStatus('✅ FFmpeg siap — mulai membuat frame...',81);
+  setDiag('FFmpeg 0.12.10 siap.\nMode: single-thread\nEncoder: H.264 → AAC');
+  return{f,fetchFile:umod.fetchFile}
+ })().catch(e=>{ffmpegLoading=null;throw e});
+ return ffmpegLoading
+}
+async function renderMP4(){
+ if(!script.value.trim())throw Error('Buat script dulu.');
+ if(!lastWav)await generateVoice();
+ if(!voiceDuration)throw Error('Durasi voice tidak terbaca.');
+ const ss=scenes(script.value),pack=await initFFmpeg(),f=pack.f,fetchFile=pack.fetchFile,ctx=live.getContext('2d',{alpha:false});
+ live.style.display='block';preview.style.display='none';download.style.display='none';
+ const weights=ss.map(s=>Math.max(1,s.n.length||1)),sum=weights.reduce((a,b)=>a+b,0),durations=weights.map(w=>voiceDuration*w/sum),files=[];
+ for(let i=0;i<ss.length;i++){
+  drawScene(ctx,ss[i],i,ss.length);
+  const blob=await new Promise((res,rej)=>live.toBlob(b=>b?res(b):rej(Error('Canvas JPEG gagal')),'image/jpeg',.82));
+  const name='scene'+String(i).padStart(2,'0')+'.jpg';
+  await f.writeFile(name,await fetchFile(blob));files.push({name,d:durations[i]});
+  setStatus('🖼️ Scene '+(i+1)+'/'+ss.length+' siap...',82+(i/ss.length)*8)
+ }
+ let concat='';for(const x of files)concat+='file '+x.name+'\nduration '+x.d.toFixed(3)+'\n';concat+='file '+files[files.length-1].name+'\n';
+ await f.writeFile('concat.txt',new TextEncoder().encode(concat));
+ await f.writeFile('audio.wav',await fetchFile(lastWav));
+ setStatus('🎬 Encoding MP4...',92);
+ const common=['-f','concat','-safe','0','-i','concat.txt','-i','audio.wav','-map','0:v:0','-map','1:a:0','-vf','format=yuv420p','-r','24','-c:a','aac','-b:a','96k','-shortest','-movflags','+faststart'];
+ let ok=false,err=null;
+ for(const codec of [['libx264','-preset','ultrafast','-crf','30'],['mpeg4','-q:v','8']]){
+  try{
+   try{await f.deleteFile('output.mp4')}catch{}
+   const rc=await f.exec([...common,'-c:v',...codec,'output.mp4'],180000);
+   if(rc!==0)throw Error('FFmpeg exit code '+rc);
+   ok=true;break
+  }catch(e){err=e;console.warn('Codec failed',codec,e)}
+ }
+ if(!ok)throw Error('Encoder MP4 gagal: '+(err?.message||err));
+ const data=await f.readFile('output.mp4');
+ const bytes=data instanceof Uint8Array?data:data.data||data;
+ const blob=new Blob([bytes],{type:'video/mp4'});
+ if(!blob.size)throw Error('Video kosong');
+ const url=URL.createObjectURL(blob);preview.src=url;preview.style.display='block';live.style.display='none';
+ download.href=url;download.download='ai-shorts-'+Date.now()+'.mp4';download.textContent='⬇️ DOWNLOAD VIDEO MP4 + VOICE';download.style.display='block';
+ setStatus('✅ VIDEO LENGKAP SELESAI — '+(blob.size/1048576).toFixed(1)+' MB',100);return blob
+}
 $('#render').onclick=async()=>{const b=$('#render');b.disabled=true;try{await renderMP4()}catch(e){setStatus('❌ Render gagal: '+e.message,0);setDiag(e.stack||e.message)}finally{b.disabled=false}};
 async function generateAll(){if(!topic.value.trim())return alert('Isi topik dulu.');all.disabled=true;try{setStatus('🚀 1/3 Membuat script...',5);await makeScript();setStatus('🗣️ 2/3 Membuat voice...',45);await generateVoice();setStatus('🎬 3/3 Membuat VIDEO...',80);await renderMP4()}catch(e){setStatus('❌ Gagal: '+e.message,0);setDiag(e.stack||e.message)}finally{all.disabled=false}}
 all.onclick=generateAll;
