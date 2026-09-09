@@ -34,28 +34,44 @@ function mWriteWav(wav,sr){const n=wav.length,ch=1,bps=2,buf=new ArrayBuffer(44+
 $('#voice').onclick=async()=>{try{await generateVoice();setStatus('✅ Voice siap — '+voiceDuration.toFixed(1)+' detik.',100)}catch(e){setStatus('❌ TTS gagal: '+e.message,0);setDiag(e.stack||e.message)}};
 function wrap(c,text,x,y,w,h,max){const a=String(text||'').replace(/\s+/g,' ').trim().split(' '),ls=[];let line='';for(const word of a){const z=line?line+' '+word:word;if(c.measureText(z).width>w&&line){ls.push(line);line=word;if(ls.length>=max)break}else line=z}if(line&&ls.length<max)ls.push(line);const top=y-(ls.length-1)*h/2;ls.forEach((l,i)=>c.fillText(l,x,top+i*h))}
 function drawScene(ctx,s,idx,total){ctx.fillStyle='#07080b';ctx.fillRect(0,0,360,640);const g=ctx.createLinearGradient(0,0,360,640);g.addColorStop(0,'#171b2a');g.addColorStop(1,'#05060a');ctx.fillStyle=g;ctx.fillRect(0,0,360,640);ctx.fillStyle='#fff';ctx.font='800 22px system-ui';ctx.textAlign='center';wrap(ctx,s.v||('Scene '+(idx+1)),180,290,300,31,7);ctx.fillStyle='#aeb5c1';ctx.font='500 15px system-ui';ctx.fillText((idx+1)+' / '+total,180,590)}
+async function loadFFmpegInstance(F,base,mode,useBlob,util){
+ const f=new F();
+ f.on('log',({message})=>{console.log('[FFmpeg]',message);if(/error|failed|invalid|unknown|abort/i.test(message))setDiag('FFmpeg: '+message)});
+ const core=base+'/ffmpeg-core.js',wasm=base+'/ffmpeg-core.wasm';
+ setDiag('FFmpeg single-thread 0.12.10\nMode: '+mode+'\niPhone/WebGPU: '+(!!navigator.gpu)+'\ncrossOriginIsolated: '+crossOriginIsolated+'\nMemuat encoder ~32 MB...');
+ const cfg=useBlob?{coreURL:await util.toBlobURL(core,'text/javascript'),wasmURL:await util.toBlobURL(wasm,'application/wasm')}:{coreURL:core,wasmURL:wasm};
+ const p=f.load(cfg);let timer;const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('FFmpeg load timeout')),90000)});
+ try{await Promise.race([p,timeout]);return f}finally{clearTimeout(timer)}
+}
 async function initFFmpeg(){
  if(ffmpeg)return ffmpeg;
  if(ffmpegLoading)return ffmpegLoading;
  ffmpegLoading=(async()=>{
   setStatus('⚙️ Memuat FFmpeg encoder...',78);
-  setDiag('FFmpeg single-thread 0.12.10\niPhone/WebGPU: '+(!!navigator.gpu)+'\ncrossOriginIsolated: '+crossOriginIsolated+'\nMengunduh encoder ~32 MB...');
   const fmod=await import('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js');
   const umod=await import('https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/dist/esm/index.js');
-  const f=new fmod.FFmpeg();
-  f.on('log',({message})=>{console.log('[FFmpeg]',message);if(/error|failed|invalid|unknown|abort/i.test(message))setDiag('FFmpeg: '+message)});
-  const base='https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd';
-  const loadPromise=f.load({
-   coreURL:await umod.toBlobURL(base+'/ffmpeg-core.js','text/javascript'),
-   wasmURL:await umod.toBlobURL(base+'/ffmpeg-core.wasm','application/wasm')
-  });
-  let timer;
-  const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('FFmpeg load timeout setelah 60 detik. Coba tekan Render MP4 lagi.')),60000)});
-  try{await Promise.race([loadPromise,timeout]);}finally{clearTimeout(timer)}
-  ffmpeg=f;
-  setStatus('✅ FFmpeg siap — mulai membuat frame...',81);
-  setDiag('FFmpeg 0.12.10 siap.\nMode: single-thread\nEncoder: H.264 → AAC');
-  return{f,fetchFile:umod.fetchFile}
+  let f=null,lastError=null;
+  const attempts=[
+   ['jsDelivr-direct','https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd',false],
+   ['unpkg-direct','https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd',false],
+   ['jsDelivr-blob','https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd',true]
+  ];
+  for(const [mode,base,useBlob] of attempts){
+   try{
+    setStatus('⚙️ Memuat FFmpeg — '+mode+'...',78);
+    f=await loadFFmpegInstance(fmod.FFmpeg,base,mode,useBlob,umod);
+    ffmpeg=f;
+    setStatus('✅ FFmpeg siap — mulai membuat frame...',81);
+    setDiag('FFmpeg 0.12.10 siap.\nMode: '+mode+' / single-thread\nEncoder: H.264 → AAC');
+    return{f,fetchFile:umod.fetchFile}
+   }catch(e){
+    lastError=e;
+    console.warn('FFmpeg load failed:',mode,e);
+    try{f?.terminate()}catch{}
+    f=null;
+   }
+  }
+  throw Error('FFmpeg tidak bisa dimuat di iPhone setelah 3 metode. '+(lastError?.message||''));
  })().catch(e=>{ffmpegLoading=null;throw e});
  return ffmpegLoading
 }
